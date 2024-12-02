@@ -1,32 +1,14 @@
 {
   "project_info": {
-    "project_number": "245736355236",
-    "project_id": "cloud-computing-task-1-fcai",
-    "storage_bucket": "cloud-computing-task-1-fcai.firebasestorage.app"
+    "project_number": "831812078730",
+    "firebase_url": "https://cloud-computing-task-2-fcai-default-rtdb.firebaseio.com",
+    "project_id": "cloud-computing-task-2-fcai",
+    "storage_bucket": "cloud-computing-task-2-fcai.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:245736355236:android:7f54eac73d591a4553fd31",
-        "android_client_info": {
-          "package_name": "com.example.task1"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyCskWH4AKgJz9X4PrXifkK_bVbuYr_JkYw"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:245736355236:android:78f6127f476553bf53fd31",
+        "mobilesdk_app_id": "1:831812078730:android:7585733fa65a386339b173",
         "android_client_info": {
           "package_name": "com.example.task2_chat_rooms"
         }
@@ -34,26 +16,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyCskWH4AKgJz9X4PrXifkK_bVbuYr_JkYw"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:245736355236:android:7f90a1171a88252953fd31",
-        "android_client_info": {
-          "package_name": "com.roaa.task1"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyCskWH4AKgJz9X4PrXifkK_bVbuYr_JkYw"
+          "current_key": "AIzaSyD30zW65gsjJB-P_ewW_jJ-Ntyb2cqtIAY"
         }
       ],
       "services": {

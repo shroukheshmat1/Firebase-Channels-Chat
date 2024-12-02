@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:task2_chat_rooms/screens/login_page.dart';
 
 class ChatOrbitHomePage extends StatefulWidget {
   const ChatOrbitHomePage({super.key});
@@ -13,10 +13,26 @@ class ChatOrbitHomePage extends StatefulWidget {
 
 class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
   String? activeChannel; // The active channel selected by the user
+  bool isSubscribed = false;
 
   final TextEditingController _messageController = TextEditingController();
 
   // ------------------------------------------------------------------------
+  Future<void> _checkSubscriptionStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && activeChannel != null) {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final subscriptions =
+          List<String>.from(userDoc.data()?['subscriptions'] ?? []);
+      setState(() {
+        isSubscribed = subscriptions.contains(activeChannel);
+      });
+    }
+  }
+
   Future<void> _addChannel(
       String name, String description, String createdBy) async {
     await FirebaseFirestore.instance.collection('channels').add({
@@ -28,10 +44,31 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
   }
 
   Future<void> _removeChannel(String channelId) async {
-    await FirebaseFirestore.instance
-        .collection('channels')
-        .doc(channelId)
-        .delete();
+    bool confirm = await _showConfirmationDialog(
+        title: "Remove Channel",
+        message: "Are you sure you want to remove this channel?");
+
+    if (confirm) {
+      final messagesRef =
+          FirebaseDatabase.instance.ref('messages').child(channelId);
+      final messagesSnapshot = await messagesRef.get();
+
+      if (messagesSnapshot.exists) {
+        // Step 2: Delete each message from Realtime Database
+        for (var message in messagesSnapshot.children) {
+          await messagesRef.child(message.key!).remove(); // Remove each message
+        }
+      }
+      await FirebaseFirestore.instance
+          .collection('channels')
+          .doc(channelId)
+          .delete();
+      if (activeChannel == channelId) {
+        setState(() {
+          activeChannel = null;
+        });
+      }
+    }
   }
 
   Future<void> _subscribeToChannel(String channelId) async {
@@ -42,6 +79,7 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
       await userRef.update({
         'subscriptions': FieldValue.arrayUnion([channelId]),
       });
+      _checkSubscriptionStatus();
     }
   }
 
@@ -53,6 +91,7 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
       await userRef.update({
         'subscriptions': FieldValue.arrayRemove([channelId]),
       });
+      _checkSubscriptionStatus();
     }
   }
 
@@ -75,7 +114,202 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
     return List<String>.from(userDoc.data()?['subscriptions'] ?? []);
   }
 
+  void _sendMessage() async {
+    String message = _messageController.text.trim();
+    if (message.isEmpty || activeChannel == null) {
+      return;
+    }
+
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('You must be logged in to send messages')));
+      return;
+    }
+    DatabaseReference messageRef =
+        FirebaseDatabase.instance.ref("messages/${activeChannel!}").push();
+
+    await messageRef.set({
+      'text': message,
+      'senderId': user.uid,
+      'timestamp': ServerValue.timestamp
+    });
+    _messageController.clear();
+  }
+
+  Stream<List<Map<String, dynamic>>> getMessages(String channelId) {
+    return FirebaseDatabase.instance
+        .ref("messages/$channelId")
+        .orderByChild("timestamp")
+        .onValue
+        .map((event) {
+      final data = event.snapshot.value as Map<dynamic, dynamic>? ?? {};
+      return data.entries.map((entry) {
+        final key = entry.key as String;
+        final value = Map<String, dynamic>.from(entry.value);
+        return {...value, 'id': key};
+      }).toList();
+    });
+  }
+
+  Future<String?> _getUsername(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      return userDoc['email'] as String?;
+    } catch (_) {
+      return "Unknown";
+    }
+  }
+
+  Future<void> _logout(BuildContext context) async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginPage()),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Logout Failed: $e')));
+    }
+  }
   // ------------------------------------------------------------------------
+
+  Widget _buildMessageList() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: activeChannel != null ? getMessages(activeChannel!) : null,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
+        final messages = snapshot.data ?? [];
+        return ListView.builder(
+          itemCount: messages.length,
+          itemBuilder: (context, index) {
+            final message = messages[index];
+            return FutureBuilder<String?>(
+              future: _getUsername(message['senderId']),
+              builder: (context, usernameSnapshot) {
+                String sender = usernameSnapshot.data ?? "Unknown";
+                return Container(
+                  margin:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sender,
+                        style: const TextStyle(
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(message['text'] ?? ""),
+                      const SizedBox(height: 4),
+                      Text(
+                        DateTime.fromMillisecondsSinceEpoch(
+                                message['timestamp'] as int)
+                            .toLocal()
+                            .toString(),
+                        style:
+                            const TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              decoration: const InputDecoration(
+                hintText: "Type a message",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(
+            width: 8,
+          ),
+          IconButton(
+            icon: const Icon(
+              Icons.send,
+              color: Color(0xFF1F2937),
+            ),
+            onPressed: () {
+              if (activeChannel != null && isSubscribed) {
+                _sendMessage();
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text("You must select and subscribe to a channel."),
+                ));
+              }
+            },
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChannelTile(Map<String, dynamic> channelData) {
+    String channelId = channelData['id'];
+    String channelName = channelData['name'];
+    String channelDescription = channelData['description'];
+    bool isActive = activeChannel == channelId;
+
+    return ListTile(
+      leading: const Icon(Icons.chat, color: Colors.white),
+      title: Text(
+        channelName,
+        style: TextStyle(
+          color: isActive ? Colors.blue : Colors.white,
+          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+        ),
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(
+        channelDescription,
+        style: const TextStyle(
+          color: Colors.grey,
+          fontSize: 14,
+        ),
+        overflow: TextOverflow.ellipsis,
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.delete, color: Colors.red),
+        onPressed: () => _removeChannel(channelId),
+      ),
+      onTap: () {
+        setState(() {
+          activeChannel = channelId;
+        });
+        _checkSubscriptionStatus();
+      },
+    );
+  }
 
   // Show dialog to add a new channel
   void _showAddChannelDialog(BuildContext context) {
@@ -175,42 +409,26 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
     );
   }
 
-  void _sendMessage() async {
-    String message = _messageController.text.trim();
-    if (message.isEmpty || activeChannel == null) {
-      return;
-    }
-
-    User? user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('You must be logged in to send messages')));
-      return;
-    }
-    DatabaseReference messageRef =
-        FirebaseDatabase.instance.ref("messages/${activeChannel!}").push();
-
-    await messageRef.set({
-      'text': message,
-      'senderId': user.uid,
-      'timestamp': ServerValue.timestamp
-    });
-    _messageController.clear();
-  }
-
-  Stream<List<Map<String, dynamic>>> getMessages(String channelId) {
-    return FirebaseDatabase.instance
-        .ref("messages/$channelId")
-        .orderByChild("timestamp")
-        .onValue
-        .map((event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>? ?? {};
-      return data.entries.map((entry) {
-        final key = entry.key as String;
-        final value = Map<String, dynamic>.from(entry.value);
-        return {...value, 'id': key};
-      }).toList();
-    });
+  Future<bool> _showConfirmationDialog(
+      {required String title, required String message}) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text("Confirm"),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   // Widget for the subscription button
@@ -243,13 +461,19 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
   // Handle subscription to a channel
 
   @override
+  void initState() {
+    super.initState();
+    _checkSubscriptionStatus(); // Initialize subscription status
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
           // Sidebar
           Container(
-            width: MediaQuery.of(context).size.width * 0.25,
+            width: MediaQuery.of(context).size.width * 0.3,
             color: const Color(0xFF1F2937),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,6 +502,12 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
                               context); // Open dialog for adding a new channel
                         },
                       ),
+                      IconButton(
+                          icon: const Icon(Icons.logout),
+                          color: Colors.white,
+                          onPressed: () {
+                            _logout(context);
+                          }),
                     ],
                   ),
                 ),
@@ -298,48 +528,12 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
                             );
                           }
 
-                          var channels = snapshot.data ?? [];
+                          final channels = snapshot.data ?? [];
                           return ListView.builder(
                             itemCount: channels.length,
                             itemBuilder: (context, index) {
-                              var channelDoc = channels[index];
-                              String channelId = channelDoc['id'];
-                              String channelName = channelDoc['name'];
-                              String channelDescription =
-                                  channelDoc['description'];
-                              bool isActive = activeChannel == channelId;
-
-                              return ListTile(
-                                leading: const Text(
-                                  "#",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                title: Text(
-                                  channelName,
-                                  style: TextStyle(
-                                    color:
-                                        isActive ? Colors.blue : Colors.white,
-                                    fontWeight: isActive
-                                        ? FontWeight.bold
-                                        : FontWeight.normal,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  channelDescription,
-                                  style: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                onTap: () {
-                                  setState(() {
-                                    activeChannel = channelId;
-                                  });
-                                },
-                              );
+                              final channel = channels[index];
+                              return _buildChannelTile(channel);
                             },
                           );
                         })),
@@ -376,141 +570,91 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
                           ),
                         ],
                       )
-                    : StreamBuilder<DatabaseEvent>(
-                        stream: FirebaseDatabase.instance
-                            .ref('messages/$activeChannel')
-                            .onValue,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          }
-                          if (snapshot.hasError) {
-                            return Center(
-                                child: Text('Error: ${snapshot.error}'));
-                          }
-
-                          final data = snapshot.data?.snapshot.value
-                                  as Map<dynamic, dynamic>? ??
-                              {};
-                          final messages = data.entries
-                              .map((e) => {
-                                    'id': e.key,
-                                    ...Map<String, dynamic>.from(e.value)
-                                  })
-                              .toList();
-
-                          return Column(
-                            children: [
-                              // Display active channel and messages
-                              Container(
-                                padding: const EdgeInsets.all(16),
-                                color: const Color(0xFF1F2937),
-                                child: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.chat,
-                                      color: Colors.white,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    StreamBuilder(
-                                      stream: FirebaseFirestore.instance
-                                          .collection('channels')
-                                          .doc(activeChannel)
-                                          .snapshots(),
-                                      builder: (context, channelSnapshot) {
-                                        if (channelSnapshot.connectionState ==
-                                            ConnectionState.waiting) {
-                                          return const CircularProgressIndicator();
-                                        }
-
-                                        if (channelSnapshot.hasError ||
-                                            !channelSnapshot.hasData) {
-                                          return const Text(
-                                              'Channel not found');
-                                        }
-                                        final channelData =
-                                            channelSnapshot.data!;
-                                        final channelName =
-                                            channelData['name'] ??
-                                                'Unkown Channel';
-                                        return Text(
+                    : Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            color: const Color(0xFF1F2937),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.chat,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 8),
+                                StreamBuilder(
+                                  stream: FirebaseFirestore.instance
+                                      .collection('channels')
+                                      .doc(activeChannel)
+                                      .snapshots(),
+                                  builder: (context, channelSnapshot) {
+                                    if (channelSnapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return const CircularProgressIndicator();
+                                    }
+                                    if (channelSnapshot.hasError ||
+                                        !channelSnapshot.hasData) {
+                                      return const Text('Channel not found');
+                                    }
+                                    final channelData = channelSnapshot.data!;
+                                    final channelName = channelData['name'] ??
+                                        'Unknown Channel';
+                                    final channelDescription =
+                                        channelData['description'] ?? "";
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
                                           channelName,
                                           style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 18,
                                             fontWeight: FontWeight.bold,
                                           ),
-                                        );
-                                      },
-                                    ),
-                                    const Spacer(),
-                                    PopupMenuButton(
-                                      icon: const Icon(
-                                        Icons.more_vert,
-                                        color: Colors.white,
-                                      ),
-                                      itemBuilder: (_) => [
-                                        const PopupMenuItem(
-                                          value: "unsubscribe",
-                                          child: Text("Unsubscribe"),
+                                        ),
+                                        const SizedBox(
+                                          height: 4,
+                                        ),
+                                        Text(
+                                          channelDescription,
+                                          style: const TextStyle(
+                                            color: Colors
+                                                .white70, // Lighter color for description
+                                            fontSize:
+                                                14, // Smaller font size for subtitle
+                                          ),
                                         ),
                                       ],
-                                      onSelected: (value) {
-                                        if (value == "unsubscribe") {
-                                          _showUnsubscribeDialog(context);
-                                        }
-                                      },
-                                    )  
-                                  ],
-                                ),
-                              ),
-                              Expanded(
-                                child: messages.isEmpty
-                                ? const Center(child: Text("No Messages Yet."))
-                                : ListView.builder(
-                                    itemCount: messages.length,
-                                    itemBuilder: (context, index) {
-                                      return ListTile(
-                                        title: Text(
-                                          messages[index]['text'] ?? '',
-                                          style: const TextStyle(
-                                              color: Colors.black),
-                                        ),
-                                        subtitle: Text(
-                                          'Sent by: ${messages[index]['senderId'] ?? 'Unknown'}',
-                                          style: const TextStyle(color: Colors.grey),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                              ),
-                              // Show the subscription button if not subscribed
-                              
-                              Padding(
-                                padding: const EdgeInsets.all(8.0),
-                                child: _subscriptionButton(),
-                              ),
-                              // Show message input field if subscribed
-                              
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: TextField(
-                                  controller: _messageController,
-                                  decoration: const InputDecoration(
-                                    hintText: "Type a message",
-                                    border: OutlineInputBorder(),
-                                  ),
-                                  onSubmitted: (value) {
-                                    _sendMessage(); // Call _sendMessage when the user presses 'Enter' or submits the message
+                                    );
                                   },
                                 ),
-                              ),
-                            ],
-                          );
-                        },
+                                const Spacer(),
+                                if (isSubscribed)
+                                  PopupMenuButton(
+                                    icon: const Icon(
+                                      Icons.more_vert,
+                                      color: Colors.white,
+                                    ),
+                                    itemBuilder: (_) => [
+                                      const PopupMenuItem(
+                                        value: "unsubscribe",
+                                        child: Text("Unsubscribe"),
+                                      ),
+                                    ],
+                                    onSelected: (value) {
+                                      if (value == "unsubscribe") {
+                                        _showUnsubscribeDialog(context);
+                                      }
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Expanded(child: _buildMessageList()),
+                          if (isSubscribed) _buildMessageInput(),
+                          if (!isSubscribed) _subscriptionButton(),
+                        ],
                       ),
               ),
             ),
