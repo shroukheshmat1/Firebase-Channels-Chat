@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "621342909573",
+    "project_id": "cloud-first-task",
+    "storage_bucket": "cloud-first-task.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:621342909573:android:a169bb1e57e6ac0570b5ec",
+        "android_client_info": {
+          "package_name": "com.example.cloud_first_task"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdk-twoeIR5R5MFfmtVm2vtJaAFYnQIBM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
