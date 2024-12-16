@@ -33,6 +33,26 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
     }
   }
 
+  Future<void> unsubscribeAllUsers(String channelId) async {
+    final querySnapshot = await FirebaseFirestore.instance.collection('users').get();
+
+    for (var doc in querySnapshot.docs) {
+      final userId = doc.id;
+      final userSubscriptions = List<String>.from(doc['subscriptions'] ?? []);
+
+      // Check if the channelId exists in the subscriptions array
+      if (userSubscriptions.contains(channelId)) {
+        userSubscriptions.remove(channelId);
+
+        // Update the subscriptions array for the user
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .update({'subscriptions': userSubscriptions});
+      }
+    }
+  }
+
   Future<void> _addChannel(
       String name, String description, String createdBy) async {
     await FirebaseFirestore.instance.collection('channels').add({
@@ -59,6 +79,7 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
           await messagesRef.child(message.key!).remove(); // Remove each message
         }
       }
+      unsubscribeAllUsers(channelId);
       await FirebaseFirestore.instance
           .collection('channels')
           .doc(channelId)
@@ -473,7 +494,7 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
         children: [
           // Sidebar
           Container(
-            width: MediaQuery.of(context).size.width * 0.3,
+            width: MediaQuery.of(context).size.width * 0.45,
             color: const Color(0xFF1F2937),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
