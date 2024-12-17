@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:task2_chat_rooms/screens/home_page.dart';
 import 'package:task2_chat_rooms/screens/login_page.dart';
+import 'package:task2_chat_rooms/screens/register_page.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -24,7 +25,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: FirebaseAuth.instance.currentUser != null 
           ? const ChatOrbitHomePage() 
-          : const LoginPage(),
+          : const RegisterPage(),
     );
   }
 }

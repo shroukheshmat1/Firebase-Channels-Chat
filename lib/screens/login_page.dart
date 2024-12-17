@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:task2_chat_rooms/screens/register_page.dart';
 import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -119,7 +120,27 @@ class _LoginPageState extends State<LoginPage> {
               child: const Text(
                 "Login",
               ),
-            )
+            ),
+            Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text("Don't Have An Account? "),
+                  InkWell(
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => const RegisterPage()),
+                      );
+                    },
+                    child: const Text(
+                        "Register",
+                      style: TextStyle(color: Color(0xFF1F2937)),
+                    ),
+                  )
+                ],
+              )
+
+
           ],
           
         ),
