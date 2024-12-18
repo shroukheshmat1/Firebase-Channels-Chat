@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -17,7 +18,10 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _otpController = TextEditingController();
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+
   String? _verificationId;
 
   Future<void> _registerWithEmail() async {
@@ -30,6 +34,11 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (user != null) {
         await _addUser(user);
+
+        await analytics.logEvent(
+          name: 'first_time_login',
+          parameters: {'user_id': user.uid, 'method': 'email'},
+        );
       }
 
       Navigator.pushReplacement(
@@ -53,6 +62,10 @@ class _RegisterPageState extends State<RegisterPage> {
           final user = userCredential.user;
           if (user != null) {
             await _addUser(user);
+            await analytics.logEvent(
+              name: 'first_time_login',
+              parameters: {'user_id': user.uid, 'method': 'phone'},
+            );
           }
           Navigator.pushReplacement(
             context,
@@ -108,6 +121,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       final user = userCredential.user;
                       if (user != null) {
                         await _addUser(user);
+                        await analytics.logEvent(
+                          name: 'first_time_login',
+                          parameters: {'user_id': user.uid, 'method': 'phone'},
+                        );
                       }
                       Navigator.pop(context);
                       Navigator.pushReplacement(
@@ -153,6 +170,10 @@ class _RegisterPageState extends State<RegisterPage> {
 
       if (user != null) {
         await _addUser(user);
+        await analytics.logEvent(
+          name: 'first_time_login',
+          parameters: {'user_id': user.uid, 'method': 'google'},
+        );
       }
       Navigator.pushReplacement(
         context,

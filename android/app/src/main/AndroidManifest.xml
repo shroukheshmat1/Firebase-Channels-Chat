@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.task2_chat_rooms">
     <application
         android:usesCleartextTraffic="true"
         android:label="task2_chat_rooms"

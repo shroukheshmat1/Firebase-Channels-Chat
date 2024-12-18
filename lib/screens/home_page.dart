@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:task2_chat_rooms/screens/login_page.dart';
 
 class ChatOrbitHomePage extends StatefulWidget {
@@ -14,6 +15,8 @@ class ChatOrbitHomePage extends StatefulWidget {
 class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
   String? activeChannel; // The active channel selected by the user
   bool isSubscribed = false;
+
+  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   final TextEditingController _messageController = TextEditingController();
 
@@ -101,6 +104,11 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
         'subscriptions': FieldValue.arrayUnion([channelId]),
       });
       _checkSubscriptionStatus();
+
+      await analytics.logEvent(
+        name: 'channel_subscription',
+        parameters: {'user_id': user.uid, 'action': 'subscribe', 'channel_id': channelId}
+      );
     }
   }
 
@@ -113,6 +121,11 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
         'subscriptions': FieldValue.arrayRemove([channelId]),
       });
       _checkSubscriptionStatus();
+
+      await analytics.logEvent(
+          name: 'channel_unsubscription',
+          parameters: {'user_id': user.uid, 'action': 'unsubscribe', 'channel_id': channelId}
+      );
     }
   }
 
@@ -187,11 +200,17 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
 
   Future<void> _logout(BuildContext context) async {
     try {
+      final user = FirebaseAuth.instance.currentUser;
       await FirebaseAuth.instance.signOut();
+      await analytics.logEvent(
+          name: 'logout',
+          parameters: {'user_id': user!.uid, 'action': 'logout'}
+      );
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LoginPage()),
       );
+
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Logout Failed: $e')));
