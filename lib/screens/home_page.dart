@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:task2_chat_rooms/screens/login_page.dart';
 
+import '../services/notification_service.dart';
+
 class ChatOrbitHomePage extends StatefulWidget {
   const ChatOrbitHomePage({super.key});
 
@@ -109,6 +111,9 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
         name: 'channel_subscription',
         parameters: {'user_id': user.uid, 'action': 'subscribe', 'channel_id': channelId}
       );
+
+      final channel = await FirebaseFirestore.instance.collection('channels').doc(channelId).get();
+      await NotificationService.instance.showNotificationWithDetails('Subscribe', 'Welcome to ${channel.data()!['name']} Channel');
     }
   }
 
@@ -126,6 +131,9 @@ class _ChatOrbitHomePageState extends State<ChatOrbitHomePage> {
           name: 'channel_unsubscription',
           parameters: {'user_id': user.uid, 'action': 'unsubscribe', 'channel_id': channelId}
       );
+
+      final channel = await FirebaseFirestore.instance.collection('channels').doc(channelId).get();
+      await NotificationService.instance.showNotificationWithDetails('Unsubscribe', '${channel.data()!['name']} Channel Members Will Miss You :(');
     }
   }
 

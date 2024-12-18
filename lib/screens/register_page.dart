@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:task2_chat_rooms/screens/login_page.dart';
+import 'package:task2_chat_rooms/services/notification_service.dart';
 import 'home_page.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -199,6 +200,7 @@ class _RegisterPageState extends State<RegisterPage> {
       else{
         await userRef.set({'phoneNumber': user.phoneNumber, 'subscriptions': []});
       }
+      await NotificationService.instance.showNotificationWithDetails('Welcome', 'Welcome to Our Application');
     }
   }
 

@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:task2_chat_rooms/screens/home_page.dart';
 import 'package:task2_chat_rooms/screens/login_page.dart';
 import 'package:task2_chat_rooms/screens/register_page.dart';
+import 'package:task2_chat_rooms/services/notification_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -12,6 +13,7 @@ void main() async {
     name: 'cloud-computing-task-2-fcai',
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await NotificationService.instance.initialize();
   runApp(const MyApp());
 }
 
