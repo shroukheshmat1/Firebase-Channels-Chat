@@ -1,0 +1,52 @@
+name: CI/CD Pipeline for Firebase App Distribution
+
+on:
+  push:
+    branches:
+      - master  # Trigger the pipeline when code is pushed to the 'main' branch
+  pull_request:
+    branches:
+      - master  # Trigger the pipeline on pull requests to 'main'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # Use an Ubuntu environment to run the job
+
+    steps:
+    # Step 1: Checkout the code
+    - name: Checkout code
+      uses: actions/checkout@v2  # Check out the code from GitHub
+
+    # Step 2: Set up Flutter
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: 'stable'  # Use the stable version of Flutter
+
+   # Step 3: Install Android dependencies
+    - name: Set up Android SDK
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y openjdk-11-jdk
+        sudo apt-get install -y unzip
+        wget https://dl.google.com/android/repository/commandlinetools-linux-6858069_latest.zip
+        unzip commandlinetools-linux-6858069_latest.zip -d $HOME/android-sdk-linux
+        yes | $HOME/android-sdk-linux/cmdline-tools/bin/sdkmanager --sdk_root=$HOME/android-sdk-linux --licenses
+        $HOME/android-sdk-linux/cmdline-tools/bin/sdkmanager --sdk_root=$HOME/android-sdk-linux "platform-tools" "build-tools;30.0.3" "platforms;android-30"  # You can specify the build tools and platform you want to use
+
+    # Step 4: Install Flutter dependencies
+    - name: Install dependencies
+      run: flutter pub get  # Install the dependencies specified in pubspec.yaml
+
+    # Step 5: Build the APK in release mode
+    - name: Build APK
+      run: flutter build apk --release  # Build the APK for release
+
+    # Step 6: Upload to Firebase App Distribution
+    - name: Upload to Firebase App Distribution
+      env:
+        FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}  # Use the Firebase token secret
+      run: |
+        firebase appdistribution:distribute build/app/outputs/flutter-apk/app-release.apk \
+        --app YOUR_FIREBASE_APP_ID \
+        --groups "Testers"  # Distribute to testers (or use email addresses)
